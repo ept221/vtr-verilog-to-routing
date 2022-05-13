@@ -930,7 +930,7 @@ void subckt_prep(t_model* cur_model){
 	}
 
 //TASK 2: Allocate and initialize the model_count array (global).
-	model_count = (int*)malloc((max_model_index + 1)*sizeof(int));
+	model_count = new int [max_model_index + 1];
 	for (int i = 0; i <= max_model_index; i++){
 		model_count[i] = 0;
 	}
@@ -2013,7 +2013,7 @@ void all_data_cleanup(){
  */
 	vqm_data_cleanup();//found in ../LIB/vqm_dll.h, frees parser-allocated memory
 
-	free(model_count);
+	delete[](model_count);
 	
 	return;
 }
