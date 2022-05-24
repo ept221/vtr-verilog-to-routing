@@ -138,8 +138,6 @@ static void power_usage_primitive(t_power_usage* power_usage, t_pb* pb, t_pb_gra
         /* LUT */
 
         char* SRAM_values;
-        float* input_probabilities;
-        float* input_densities;
         int LUT_size;
         int pin_idx;
 
@@ -147,13 +145,8 @@ static void power_usage_primitive(t_power_usage* power_usage, t_pb* pb, t_pb_gra
 
         LUT_size = pb_graph_node->num_input_pins[0];
 
-        input_probabilities = new float[LUT_size];
-        input_densities = new float[LUT_size];
-
-        for (pin_idx = 0; pin_idx < LUT_size; pin_idx++) {
-            input_probabilities[pin_idx] = 0;
-            input_densities[pin_idx] = 0;
-        }
+        std::vector<float> input_probabilities(LUT_size, 0);
+        std::vector<float> input_densities(LUT_size, 0);
 
         for (pin_idx = 0; pin_idx < LUT_size; pin_idx++) {
             t_pb_graph_pin* pin = &pb_graph_node->input_pins[0][pin_idx];
@@ -174,8 +167,7 @@ static void power_usage_primitive(t_power_usage* power_usage, t_pb* pb, t_pb_gra
                         input_probabilities, input_densities, power_ctx.solution_inf.T_crit);
         power_add_usage(power_usage, &sub_power_usage);
         free(SRAM_values);
-        delete[](input_probabilities);
-        delete[](input_densities);
+
     } else if (strcmp(pb_graph_node->pb_type->blif_model, MODEL_LATCH) == 0) {
         /* Flip-Flop */
 
@@ -884,12 +876,13 @@ static void power_usage_routing(t_power_usage* power_usage,
                 if (node_fan_in) {
                     VTR_ASSERT(node_power->in_dens);
                     VTR_ASSERT(node_power->in_prob);
-
+                    std::vector<float> in_dens_vector(node_power->in_dens, node_power->in_dens + node_fan_in);
+                    std::vector<float> in_prob_vector(node_power->in_prob, node_power->in_prob + node_fan_in);
                     /* Multiplexor */
                     power_usage_mux_multilevel(&sub_power_usage,
                                                power_get_mux_arch(node_fan_in,
                                                                   power_ctx.arch->mux_transistor_size),
-                                               node_power->in_prob, node_power->in_dens,
+                                               in_prob_vector, in_dens_vector,
                                                node_power->selected_input, true,
                                                power_ctx.solution_inf.T_crit);
                     power_add_usage(power_usage, &sub_power_usage);
@@ -906,6 +899,8 @@ static void power_usage_routing(t_power_usage* power_usage,
                  * 	- A buffer at the end of the wire, going to switchbox/connectionbox */
                 VTR_ASSERT(node_power->in_dens);
                 VTR_ASSERT(node_power->in_prob);
+                std::vector<float> in_dens_vector(node_power->in_dens, node_power->in_dens + node_fan_in);
+                std::vector<float> in_prob_vector(node_power->in_prob, node_power->in_prob + node_fan_in);
 
                 wire_length = 0;
                 if (rr_graph.node_type(rr_id) == CHANX) {
@@ -922,7 +917,7 @@ static void power_usage_routing(t_power_usage* power_usage,
                 power_usage_mux_multilevel(&sub_power_usage,
                                            power_get_mux_arch(node_fan_in,
                                                               power_ctx.arch->mux_transistor_size),
-                                           node_power->in_prob, node_power->in_dens,
+                                           in_prob_vector, in_dens_vector,
                                            node_power->selected_input, true, power_ctx.solution_inf.T_crit);
                 power_add_usage(power_usage, &sub_power_usage);
                 power_component_add_usage(&sub_power_usage,

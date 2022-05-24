@@ -56,8 +56,8 @@ void power_print_spice_comparison() {
     //	unsigned int mux_sizes[5] = { 4, 8, 12, 16, 20 };
     //
     unsigned int i, j;
-    float* dens = nullptr;
-    float* prob = nullptr;
+    std::vector<float> dens;
+    std::vector<float> prob;
     char* SRAM_bits_chars;
     std::string SRAM_bits;
     int sram_idx;
@@ -166,22 +166,20 @@ void power_print_spice_comparison() {
         SRAM_bits_chars = new char[SRAM_bits.size()];
         strcpy(SRAM_bits_chars, SRAM_bits.c_str());
 
-        delete[] dens;
-        delete[] prob;
-        dens = new float[LUT_sizes[i]];
-        prob = new float[LUT_sizes[i]];
+        dens.clear();
+        prob.clear();
 
         for (j = 0; j < LUT_sizes[i]; j++) {
-            dens[j] = 1.0 / (float)LUT_sizes[i];
-            prob[j] = 0.5;
+            dens.push_back(1.0 / (float)LUT_sizes[i]);
+            prob.push_back(0.5);
         }
         power_usage_lut(&sub_power_usage, LUT_sizes[i], 1.0, SRAM_bits_chars, prob,
                         dens, power_callib_period);
 
         t_power_usage power_usage_mux;
 
-        float p[6] = {0.5, 0.5, 0.5, 0.5, 0.5, 0.5};
-        float d[6] = {1, 1, 1, 1, 1, 1};
+        std::vector<float> p = {0.5, 0.5, 0.5, 0.5, 0.5, 0.5};
+        std::vector<float> d = {1, 1, 1, 1, 1, 1};
         power_usage_mux_multilevel(&power_usage_mux, power_get_mux_arch(6, 1.0),
                                    p, d, 0, true, power_ctx.solution_inf.T_crit);
 
@@ -294,8 +292,6 @@ void power_print_spice_comparison() {
     //	 * power_ctx.solution_inf.T_crit);
     //}
     //free variables
-    delete[] dens;
-    delete[] prob;
     delete[] SRAM_bits_chars;
 }
 
@@ -332,22 +328,12 @@ float power_usage_buf_levr_for_callibration(int num_inputs,
 
 float power_usage_mux_for_callibration(int num_inputs, float transistor_size) {
     t_power_usage power_usage;
-    float* dens;
-    float* prob;
-
-    dens = new float[num_inputs];
-    prob = new float[num_inputs];
-    for (int i = 0; i < num_inputs; i++) {
-        dens[i] = 2;
-        prob[i] = 0.5;
-    }
+    std::vector<float> dens(num_inputs, 2);
+    std::vector<float> prob(num_inputs, 0.5);
 
     power_usage_mux_multilevel(&power_usage,
                                power_get_mux_arch(num_inputs, transistor_size), prob, dens, 0,
                                false, power_callib_period);
-
-    delete[] dens;
-    delete[] prob;
 
     return power_sum_usage(&power_usage);
 }
@@ -355,9 +341,9 @@ float power_usage_mux_for_callibration(int num_inputs, float transistor_size) {
 float power_usage_lut_for_callibration(int num_inputs, float transistor_size) {
     t_power_usage power_usage;
     char* SRAM_bits;
-    float* dens;
-    float* prob;
     int lut_size = num_inputs;
+    std::vector<float> dens(lut_size, 1);
+    std::vector<float> prob(lut_size, 0.5);
 
     /* Initialize an SRAM pattern that guarantees the outputs toggle with
      * every input toggle.
@@ -375,18 +361,10 @@ float power_usage_lut_for_callibration(int num_inputs, float transistor_size) {
         SRAM_bits[1 << i] = '\0';
     }
 
-    dens = new float[lut_size];
-    prob = new float[lut_size];
-    for (int i = 0; i < lut_size; i++) {
-        dens[i] = 1;
-        prob[i] = 0.5;
-    }
     power_usage_lut(&power_usage, lut_size, transistor_size, SRAM_bits, prob,
                     dens, power_callib_period);
 
     delete[] SRAM_bits;
-    delete[] dens;
-    delete[] prob;
 
     return power_sum_usage(&power_usage);
 }

@@ -37,7 +37,7 @@
 /************************* STRUCTS **********************************/
 
 /************************* FUNCTION DECLARATIONS ********************/
-static void power_usage_mux_rec(t_power_usage* power_usage, float* out_prob, float* out_dens, float* v_out, t_mux_node* mux_node, t_mux_arch* mux_arch, int* selector_values, float* primary_input_prob, float* primary_input_dens, bool v_out_restored, float period);
+static void power_usage_mux_rec(t_power_usage* power_usage, float* out_prob, float* out_dens, float* v_out, t_mux_node* mux_node, t_mux_arch* mux_arch, int* selector_values, std::vector<float> primary_input_prob, std::vector<float> primary_input_dens, bool v_out_restored, float period);
 
 /************************* FUNCTION DEFINITIONS *********************/
 
@@ -203,7 +203,7 @@ void power_usage_ff(t_power_usage* power_usage, float size, float D_prob, float 
  * 7 _Z_|
  *
  */
-void power_usage_lut(t_power_usage* power_usage, int lut_size, float transistor_size, char* SRAM_values, float* input_prob, float* input_dens, float period) {
+void power_usage_lut(t_power_usage* power_usage, int lut_size, float transistor_size, char* SRAM_values, std::vector<float> input_prob, std::vector<float> input_dens, float period) {
     float** internal_prob;
     float** internal_dens;
     float** internal_v;
@@ -404,8 +404,8 @@ void power_usage_local_interc_mux(t_power_usage* power_usage, t_pb* pb, t_interc
     int pin_idx;
     int out_port_idx;
     int in_port_idx;
-    float* in_dens;
-    float* in_prob;
+    std::vector<float> in_dens;
+    std::vector<float> in_prob;
     t_power_usage MUX_power;
     t_interconnect* interc = interc_pins->interconnect;
     t_interconnect_power* interc_power = interc->interconnect_power;
@@ -440,11 +440,9 @@ void power_usage_local_interc_mux(t_power_usage* power_usage, t_pb* pb, t_interc
             /* Many-to-1, or Many-to-Many
              * Implemented as a multiplexer for each output
              * */
-            in_dens = new float[interc->interconnect_power->num_input_ports];
-            in_prob = new float[interc->interconnect_power->num_input_ports];
             for (auto i = 0; i < interc->interconnect_power->num_input_ports; i++) {
-                in_dens[i] = 0.0;
-                in_prob[i] = 0.0;
+                in_dens.push_back(0.0);
+                in_prob.push_back(0.0);
             }
 
             for (out_port_idx = 0;
@@ -507,8 +505,6 @@ void power_usage_local_interc_mux(t_power_usage* power_usage, t_pb* pb, t_interc
                 }
             }
 
-            delete[](in_dens);
-            delete[](in_prob);
             break;
         default:
             VTR_ASSERT(0);
@@ -529,8 +525,8 @@ void power_usage_local_interc_mux(t_power_usage* power_usage, t_pb* pb, t_interc
  */
 void power_usage_mux_multilevel(t_power_usage* power_usage,
                                 t_mux_arch* mux_arch,
-                                float* in_prob,
-                                float* in_dens,
+                                std::vector<float> in_prob,
+                                std::vector<float> in_dens,
                                 int selected_input,
                                 bool output_level_restored,
                                 float period) {
@@ -574,10 +570,10 @@ void power_usage_mux_multilevel(t_power_usage* power_usage,
 /**
  * Internal function, used recursively by power_calc_mux
  */
-static void power_usage_mux_rec(t_power_usage* power_usage, float* out_prob, float* out_dens, float* v_out, t_mux_node* mux_node, t_mux_arch* mux_arch, int* selector_values, float* primary_input_prob, float* primary_input_dens, bool v_out_restored, float period) {
+static void power_usage_mux_rec(t_power_usage* power_usage, float* out_prob, float* out_dens, float* v_out, t_mux_node* mux_node, t_mux_arch* mux_arch, int* selector_values, std::vector<float> primary_input_prob, std::vector<float> primary_input_dens, bool v_out_restored, float period) {
     int input_idx;
-    float* in_prob;
-    float* in_dens;
+    std::vector<float> in_prob;
+    std::vector<float> in_dens;
     float* v_in;
     t_power_usage sub_power_usage;
     auto& power_ctx = g_vpr_ctx.power();
@@ -594,19 +590,17 @@ static void power_usage_mux_rec(t_power_usage* power_usage, float* out_prob, flo
         v_in[i] = 0.0;
     if (mux_node->level == 0) {
         /* First level of mux - inputs are primar inputs */
-        in_prob = &primary_input_prob[mux_node->starting_pin_idx];
-        in_dens = &primary_input_dens[mux_node->starting_pin_idx];
+        in_prob.assign(primary_input_prob.begin() + mux_node->starting_pin_idx, primary_input_prob.begin() + primary_input_prob.size());
+        in_dens.assign(primary_input_dens.begin() + mux_node->starting_pin_idx, primary_input_dens.begin() + primary_input_dens.size());
 
         for (input_idx = 0; input_idx < mux_node->num_inputs; input_idx++) {
             v_in[input_idx] = power_ctx.tech->Vdd;
         }
     } else {
         /* Higher level of mux - inputs recursive from lower levels */
-        in_prob = new float[mux_node->num_inputs];
-        in_dens = new float[mux_node->num_inputs];
         for (auto i = 0; i < mux_node->num_inputs; i++) {
-            in_prob[i] = 0;
-            in_dens[i] = 0;
+            in_prob.push_back(0);
+            in_dens.push_back(0);
         }
 
         for (input_idx = 0; input_idx < mux_node->num_inputs; input_idx++) {
@@ -623,11 +617,6 @@ static void power_usage_mux_rec(t_power_usage* power_usage, float* out_prob, flo
                                        in_prob, in_dens, v_in, mux_arch->transistor_size, v_out_restored,
                                        period);
     power_add_usage(power_usage, &sub_power_usage);
-
-    if (mux_node->level != 0) {
-        delete[](in_prob);
-        delete[](in_dens);
-    }
 
     delete[](v_in);
 }
